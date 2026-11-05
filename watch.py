@@ -104,18 +104,7 @@ def describe(sec):
 
 
 def notify(title, body, urgent=True):
-    """Mac notification + sound, and a phone push if an ntfy channel is set."""
-    esc = lambda s: s.replace("\\", "\\\\").replace('"', '\\"')
-    try:
-        if ON_MAC:
-            subprocess.run(["/usr/bin/osascript", "-e",
-                            f'display notification "{esc(body)}" with title "{esc(title)}" sound name "Glass"'],
-                           timeout=15)
-            if urgent:
-                for _ in range(3):
-                    subprocess.run(["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"], timeout=15)
-    except Exception as e:  # noqa: BLE001 - an alert channel failing must not stop the watcher
-        log(f"mac alert failed: {e}")
+    """Phone push first (it is the one that matters), then a Mac notification + sound."""
     try:
         topic = os.environ.get("NTFY_TOPIC", "").strip() or (
             NTFY_FILE.read_text().strip() if NTFY_FILE.exists() else "")
@@ -125,8 +114,26 @@ def notify(title, body, urgent=True):
                 headers={"Title": title, "Priority": "urgent" if urgent else "default",
                          "Tags": "rotating_light" if urgent else "warning", "Click": GOLD_URL})
             urllib.request.urlopen(req, timeout=15).read()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001 - an alert channel failing must not stop the watcher
         log(f"phone alert failed: {e}")
+    if not ON_MAC:
+        return
+    esc = lambda s: s.replace("\\", "\\\\").replace('"', '\\"')
+    try:
+        subprocess.run(["/usr/bin/osascript", "-e",
+                        f'display notification "{esc(body)}" with title "{esc(title)}" sound name "Glass"'],
+                       timeout=15)
+    except Exception as e:  # noqa: BLE001
+        log(f"mac notification failed: {e}")
+    if urgent:
+        # Started in the background: the sound can hang while the Mac's display is asleep,
+        # and that must never hold up the next check.
+        try:
+            subprocess.Popen(["/bin/sh", "-c",
+                              "for i in 1 2 3; do /usr/bin/afplay /System/Library/Sounds/Glass.aiff; done"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:  # noqa: BLE001
+            log(f"mac sound failed: {e}")
 
 
 def load_state():
