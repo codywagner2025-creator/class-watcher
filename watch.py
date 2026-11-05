@@ -184,7 +184,8 @@ def check(state):
 
 def main():
     if "--test-alert" in sys.argv:
-        notify("Class watcher test", "If you can see this, alerts are working.")
+        source = "GitHub backup" if CI else "your Mac"
+        notify(f"Class watcher test ({source})", f"If you can see this, alerts from {source} are working.")
         return
     if CI:
         # Stateless: every run that finds a seat alerts, so reminders come each run.

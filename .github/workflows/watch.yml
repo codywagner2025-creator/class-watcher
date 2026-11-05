@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "Send a test alert instead of checking"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -21,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check for an open seat
-        run: python3 watch.py --ci
+        run: python3 watch.py --ci ${{ inputs.test_alert && '--test-alert' || '' }}
         env:
           UCSB_API_KEY: ${{ secrets.UCSB_API_KEY }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
