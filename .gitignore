@@ -1,0 +1,4 @@
+ntfy_topic.txt
+state.json
+*.log
+__pycache__/

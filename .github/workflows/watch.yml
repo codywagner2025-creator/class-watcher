@@ -1,0 +1,27 @@
+name: class-watcher
+
+# Backup for when the Mac is closed: checks for an open seat every 5 minutes.
+# (5 minutes is the fastest GitHub's timer allows, and it can run late.)
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: class-watcher
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for an open seat
+        run: python3 watch.py --ci
+        env:
+          UCSB_API_KEY: ${{ secrets.UCSB_API_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
