@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ from pathlib import Path
 QUARTER = "20271"            # Winter 2027  (year + 1=Winter 2=Spring 3=Summer 4=Fall)
 SUBJECT = "MATH"
 COURSE = "6B"
+COURSE_ID = "MATH      6B "  # the course's id exactly as UCSB stores it (padded with spaces)
 INSTRUCTOR = "EL-HASAN"      # matched against the lecture's instructor name
 CHECK_EVERY_SECONDS = 60
 START_HOUR, END_HOUR = 0, 24  # hours of the day to check in, local time (0, 24 = all day)
@@ -40,8 +42,7 @@ CI = "--ci" in sys.argv      # running on GitHub: settings come from secrets, ph
 ON_MAC = sys.platform == "darwin" and not CI
 
 API = ("https://api.ucsb.edu/academics/curriculums/v3/classes/search"
-       f"?quarter={QUARTER}&subjectCode={SUBJECT}"
-       "&pageNumber=1&pageSize=200&includeClassSections=true")
+       f"?quarter={QUARTER}&pageNumber=1&includeClassSections=true")
 
 
 def log(msg):
@@ -56,15 +57,27 @@ def log(msg):
         pass
 
 
-def fetch():
+def _get(url):
     key = os.environ.get("UCSB_API_KEY", "").strip() or KEY_FILE.read_text().strip()
-    req = urllib.request.Request(API, headers={
+    # UCSB's service remembers its answer to each exact request for about 30 minutes
+    # (measured 2026-11-05: a repeated request stayed frozen while new ones kept moving).
+    # A throwaway value that changes every time makes each request new, so the answer is fresh.
+    req = urllib.request.Request(f"{url}&nocache={time.time_ns()}", headers={
         "ucsb-api-key": key,
         "ucsb-api-version": "3.0",
         "accept": "application/json",
     })
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
+
+
+def fetch():
+    # Ask for just the one course (a small answer, light on UCSB's servers).
+    data = _get(f"{API}&pageSize=10&courseId={urllib.parse.quote(COURSE_ID)}")
+    if not data.get("classes"):
+        # Fall back to the whole subject if the single-course lookup comes back empty.
+        data = _get(f"{API}&pageSize=200&subjectCode={SUBJECT}")
+    return data
 
 
 def find_sections(data):
